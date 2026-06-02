@@ -124,4 +124,4 @@ async def manel(ctx, *, nome: str = None):
         if voice_client.is_connected():
             await voice_client.disconnect()
 
-bot.run('MTUxMTQ5ODIyNTczODMyMjAyMg.Gv4omQ.5oXPsPhUh8wrzPFcRxGK1oYGNFJ4BQzZKp51qk')
+bot.run('MTUxMTQ5ODIyNTczODMyMjAyMg.G14WtL.cETeeCbDIJ1OWhrEZJEY8n2MWRyY4QTjmqWfsw')
