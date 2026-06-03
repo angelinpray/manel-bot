@@ -56,15 +56,22 @@ async def buscar_info(query):
     with yt_dlp.YoutubeDL(opts) as ydl:
         try:
             info = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch5:{query}", download=False))
-            if not info or 'entries' not in info or len(info['entries']) == 0:
-                print(f"Nenhum resultado encontrado para: {query}")
+            if not info or 'entries' not in info:
+                print(f"[BUSCA] Sem entries para: {query}")
                 return None
+            print(f"[BUSCA] Total de entries: {len(info['entries'])}")
+            for i, e in enumerate(info['entries']):
+                if e:
+                    print(f"[ENTRY {i}] titulo={e.get('title')} | url={bool(e.get('url'))} | webpage={e.get('webpage_url')}")
+                else:
+                    print(f"[ENTRY {i}] None")
             entry = None
             for e in info['entries']:
                 if e and e.get('url'):
                     entry = e
                     break
             if not entry:
+                print(f"[BUSCA] Nenhuma entry com URL válida")
                 return None
             return {
                 'titulo': entry.get('title', 'Desconhecido'),
