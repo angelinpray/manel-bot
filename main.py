@@ -55,13 +55,21 @@ async def buscar_info(query):
     opts = YTDL_OPTIONS.copy()
     with yt_dlp.YoutubeDL(opts) as ydl:
         try:
-            info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
-            if 'entries' in info:
-                info = info['entries'][0]
+            info = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch5:{query}", download=False))
+            if not info or 'entries' not in info or len(info['entries']) == 0:
+                print(f"Nenhum resultado encontrado para: {query}")
+                return None
+            entry = None
+            for e in info['entries']:
+                if e and e.get('url'):
+                    entry = e
+                    break
+            if not entry:
+                return None
             return {
-                'titulo': info.get('title', 'Desconhecido'),
-                'url': info['url'],
-                'duracao': info.get('duration', 0)
+                'titulo': entry.get('title', 'Desconhecido'),
+                'url': entry['url'],
+                'duracao': entry.get('duration', 0)
             }
         except Exception as e:
             print(f"Erro ao buscar: {e}")
