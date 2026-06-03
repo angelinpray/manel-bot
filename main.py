@@ -52,6 +52,19 @@ async def buscar_info(query):
     opts = YTDL_OPTIONS.copy()
     with yt_dlp.YoutubeDL(opts) as ydl:
         try:
+            # Se for link direto não usa ytsearch
+            if query.startswith('http'):
+                info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+                if not info:
+                    return None
+                # Link direto não tem entries
+                if 'entries' in info:
+                    info = info['entries'][0]
+                return {
+                    'titulo': info.get('title', 'Desconhecido'),
+                    'url': info['url'],
+                    'duracao': info.get('duration', 0)
+                }
             info = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch5:{query}", download=False))
             if not info or 'entries' not in info:
                 print(f"[BUSCA] Sem entries para: {query}")
@@ -298,6 +311,7 @@ async def ajuda(ctx):
 @bot.event
 async def on_ready():
     print(f'Manel AI está online!')
+    print(f'[CONFIG] GROQ_API_KEY configurada: {bool(GROQ_API_KEY)} | Primeiros chars: {GROQ_API_KEY[:8] if GROQ_API_KEY else "VAZIA"}')
 
 @bot.event
 async def on_message(message):
