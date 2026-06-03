@@ -29,10 +29,11 @@ YTDL_OPTIONS = {
     'extractor_args': {
         'youtube': {
             'player_client': ['android', 'web'],
+            'player_skip': ['webpage'],
         }
     },
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/91.0.4472.120 Mobile Safari/537.36',
+        'User-Agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 12) gzip',
     },
 }
 
@@ -51,8 +52,6 @@ async def buscar_info(query):
     opts = YTDL_OPTIONS.copy()
     with yt_dlp.YoutubeDL(opts) as ydl:
         try:
-            if not query.startswith('http'):
-                query = f"ytsearch:{query}"
             info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
             if 'entries' in info:
                 info = info['entries'][0]
@@ -91,11 +90,15 @@ async def play(ctx, *, query: str = None):
         await ctx.send("Você precisa estar em um canal de voz!")
         return
 
-    msg = await ctx.send(f"🔍 Buscando **{query}**...")
-    info = await buscar_info(query)
+    async with ctx.typing():
+        msg = await ctx.send(f"🔍 Manel está molestando o YouTube em busca de **{query}**...")
+        info = await buscar_info(query)
+
     if not info:
-        await msg.edit(content="❌ Não encontrei essa música, tenta outro nome!")
+        await msg.edit(content="❌ Nem o Manel achou essa música, tenta outro nome!")
         return
+
+    await msg.edit(content=f"⏳ Achei! Preparando **{info['titulo']}**...")
 
     fila = get_fila(ctx.guild.id)
     voice_client = ctx.voice_client
