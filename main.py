@@ -13,12 +13,11 @@ intents.message_content = True
 intents.voice_states = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-GROQ_API_KEY = os.getenv('GROQ_API_KEY', 'SUA_CHAVE_GROQ_AQUI')
-BOT_TOKEN = os.getenv('BOT_TOKEN', 'SEU_TOKEN_AQUI')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 
 # ── SISTEMA DE MÚSICA ─────────────────────────────────────────
-# Fila de músicas por servidor
-filas = {}  # guild_id -> deque de dicts {titulo, url, solicitado_por}
+filas = {}
 
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
@@ -27,6 +26,14 @@ YTDL_OPTIONS = {
     'no_warnings': True,
     'default_search': 'ytsearch',
     'source_address': '0.0.0.0',
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'web'],
+        }
+    },
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/91.0.4472.120 Mobile Safari/537.36',
+    },
 }
 
 FFMPEG_OPTIONS = {
@@ -40,11 +47,10 @@ def get_fila(guild_id):
     return filas[guild_id]
 
 async def buscar_info(query):
-    """Busca info da música no YouTube sem baixar"""
     loop = asyncio.get_event_loop()
-    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+    opts = YTDL_OPTIONS.copy()
+    with yt_dlp.YoutubeDL(opts) as ydl:
         try:
-            # Se não for URL, busca no YouTube
             if not query.startswith('http'):
                 query = f"ytsearch:{query}"
             info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
@@ -53,14 +59,13 @@ async def buscar_info(query):
             return {
                 'titulo': info.get('title', 'Desconhecido'),
                 'url': info['url'],
-                'webpage_url': info.get('webpage_url', ''),
                 'duracao': info.get('duration', 0)
             }
         except Exception as e:
+            print(f"Erro ao buscar: {e}")
             return None
 
 def tocar_proxima(ctx, voice_client):
-    """Callback chamado quando a música termina"""
     fila = get_fila(ctx.guild.id)
     if fila:
         musica = fila.popleft()
@@ -79,25 +84,20 @@ def tocar_proxima(ctx, voice_client):
 
 @bot.command(aliases=['p'])
 async def play(ctx, *, query: str = None):
-    """Toca ou adiciona música à fila. Uso: !play <nome ou link>"""
     if not query:
         await ctx.send("Use: `!play nome da música` ou `!play link do youtube`")
         return
-
     if not ctx.author.voice:
         await ctx.send("Você precisa estar em um canal de voz!")
         return
 
     msg = await ctx.send(f"🔍 Buscando **{query}**...")
-
     info = await buscar_info(query)
     if not info:
         await msg.edit(content="❌ Não encontrei essa música, tenta outro nome!")
         return
 
     fila = get_fila(ctx.guild.id)
-
-    # Conecta ao canal se não estiver
     voice_client = ctx.voice_client
     if voice_client is None:
         voice_client = await ctx.author.voice.channel.connect()
@@ -105,16 +105,9 @@ async def play(ctx, *, query: str = None):
         await voice_client.move_to(ctx.author.voice.channel)
 
     if voice_client.is_playing() or voice_client.is_paused():
-        # Adiciona à fila
-        fila.append({
-            'titulo': info['titulo'],
-            'url': info['url'],
-            'solicitado_por': ctx.author.display_name
-        })
-        pos = len(fila)
-        await msg.edit(content=f"📋 Adicionado à fila (posição {pos}): **{info['titulo']}**")
+        fila.append({'titulo': info['titulo'], 'url': info['url'], 'solicitado_por': ctx.author.display_name})
+        await msg.edit(content=f"📋 Adicionado à fila (posição {len(fila)}): **{info['titulo']}**")
     else:
-        # Toca direto
         source = discord.FFmpegPCMAudio(info['url'], **FFMPEG_OPTIONS)
         source = discord.PCMVolumeTransformer(source, volume=0.5)
         voice_client.play(source, after=lambda e: tocar_proxima(ctx, voice_client))
@@ -122,12 +115,10 @@ async def play(ctx, *, query: str = None):
 
 @bot.command(aliases=['q'])
 async def fila(ctx):
-    """Mostra a fila de músicas. Uso: !fila"""
     fila = get_fila(ctx.guild.id)
     if not fila:
         await ctx.send("📋 A fila está vazia! Use `!play` para adicionar músicas.")
         return
-
     lista = "\n".join([f"`{i+1}.` {m['titulo']} — {m['solicitado_por']}" for i, m in enumerate(fila)])
     embed = discord.Embed(title="📋 Fila de músicas", description=lista, color=0x7289da)
     embed.set_footer(text=f"{len(fila)} música(s) na fila")
@@ -135,7 +126,6 @@ async def fila(ctx):
 
 @bot.command(aliases=['s'])
 async def skip(ctx):
-    """Pula a música atual. Uso: !skip"""
     if not ctx.voice_client or not ctx.voice_client.is_playing():
         await ctx.send("Não tem nenhuma música tocando agora!")
         return
@@ -144,7 +134,6 @@ async def skip(ctx):
 
 @bot.command()
 async def pause(ctx):
-    """Pausa a música. Uso: !pause"""
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.pause()
         await ctx.send("⏸️ Música pausada. Use `!resume` para continuar.")
@@ -153,7 +142,6 @@ async def pause(ctx):
 
 @bot.command()
 async def resume(ctx):
-    """Retoma a música pausada. Uso: !resume"""
     if ctx.voice_client and ctx.voice_client.is_paused():
         ctx.voice_client.resume()
         await ctx.send("▶️ Continuando!")
@@ -162,7 +150,6 @@ async def resume(ctx):
 
 @bot.command()
 async def stop(ctx):
-    """Para a música e limpa a fila. Uso: !stop"""
     fila = get_fila(ctx.guild.id)
     fila.clear()
     if ctx.voice_client:
@@ -172,7 +159,6 @@ async def stop(ctx):
 
 @bot.command()
 async def volume(ctx, vol: int = None):
-    """Ajusta o volume (0-100). Uso: !volume 50"""
     if vol is None:
         await ctx.send("Use: `!volume 0-100`")
         return
@@ -183,33 +169,24 @@ async def volume(ctx, vol: int = None):
     ctx.voice_client.source.volume = vol / 100
     await ctx.send(f"🔊 Volume: **{vol}%**")
 
-# ── PIADA (Groq) ──────────────────────────────────────────────
+# ── PIADA ─────────────────────────────────────────────────────
+PIADAS = [
+    ("Por que o esqueleto não briga?", "Porque não tem estômago pra isso!"),
+    ("O que o zero disse pro oito?", "Belo cinto!"),
+    ("Por que o livro de matemática se suicidou?", "Porque tinha muitos problemas!"),
+    ("O que o pato disse pro outro pato?", "Quá quá quá!"),
+    ("Por que o espantalho ganhou um prêmio?", "Porque era destaque no seu campo!"),
+    ("O que é um elefante transparente?", "Como se você nunca tivesse visto um elefante transparente!"),
+    ("Por que o computador foi ao médico?", "Porque estava com vírus!"),
+    ("O que o oceano disse para a praia?", "Nada, só deu uma onda!"),
+    ("Por que o professor foi ao banco?", "Para pegar o troco da matéria!"),
+    ("O que a manteiga falou para o pão?", "Você me deixa passada!"),
+]
+
 @bot.command()
 async def piada(ctx):
-    async with aiohttp.ClientSession() as session:
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama3-8b-8192",
-            "messages": [
-                {"role": "system", "content": "Você é um bot engraçado brasileiro. Responda APENAS com uma piada curta e engraçada em português do Brasil. Formato: pergunta na primeira linha, resposta na segunda linha."},
-                {"role": "user", "content": "Me conta uma piada!"}
-            ],
-            "max_tokens": 150
-        }
-        try:
-            async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload) as resp:
-                data = await resp.json()
-                piada_texto = data['choices'][0]['message']['content']
-                linhas = piada_texto.strip().split('\n', 1)
-                if len(linhas) == 2:
-                    await ctx.send(f"**Piada do Manel:**\n{linhas[0]}\n||{linhas[1]}||")
-                else:
-                    await ctx.send(f"**Piada do Manel:**\n{piada_texto}")
-        except:
-            await ctx.send("Ops! Não consegui buscar uma piada agora, tenta de novo!")
+    pergunta, resposta = random.choice(PIADAS)
+    await ctx.send(f"**Piada do Manel:**\n{pergunta}\n||{resposta}||")
 
 # ── JOKENPÔ ───────────────────────────────────────────────────
 @bot.command()
@@ -264,7 +241,6 @@ async def ajuda(ctx):
     ), inline=False)
     await ctx.send(embed=embed)
 
-# ── ON READY ──────────────────────────────────────────────────
 @bot.event
 async def on_ready():
     print(f'Manel AI está online!')
