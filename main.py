@@ -31,12 +31,9 @@ YTDL_OPTIONS = {
     'source_address': '0.0.0.0',
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'web'],
-            'player_skip': ['webpage'],
+            'player_client': ['tv_embedded'],
+            'player_skip': ['configs'],
         }
-    },
-    'http_headers': {
-        'User-Agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 12) gzip',
     },
 }
 
