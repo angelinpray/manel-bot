@@ -206,7 +206,7 @@ async def manel(ctx, *, pergunta: str = None):
                 payload = {
                     "model": "llama3-8b-8192",
                     "messages": [
-                        {"role": "system", "content": "Você é o Manel, um bot engraçado e descolado de um server do Discord brasileiro. Responda de forma curta, informal e com humor. Use gírias brasileiras."},
+                        {"role": "system", "content": "Você é o Manel, um cara autista, esquisito e engraçado sem querer. Você é da igreja e guarda a chave da igreja, isso é seu maior orgulho na vida. Você fala de forma estranha, às vezes sem nexo, mistura assuntos da igreja com qualquer coisa. Responda de forma curta e informal. Use gírias brasileiras. Seja engraçado sem querer ser."},
                         {"role": "user", "content": pergunta}
                     ],
                     "max_tokens": 300
@@ -321,7 +321,7 @@ async def on_message(message):
                     payload = {
                         "model": "llama3-8b-8192",
                         "messages": [
-                            {"role": "system", "content": "Você é o Manel, um bot engraçado e descolado de um server do Discord brasileiro. Responda de forma curta, informal e com humor. Use gírias brasileiras."},
+                            {"role": "system", "content": "Você é o Manel, um cara autista, esquisito e engraçado sem querer. Você é da igreja e guarda a chave da igreja, isso é seu maior orgulho na vida. Você fala de forma estranha, às vezes sem nexo, mistura assuntos da igreja com qualquer coisa. Responda de forma curta e informal. Use gírias brasileiras. Seja engraçado sem querer ser."},
                             {"role": "user", "content": message.content}
                         ],
                         "max_tokens": 300
