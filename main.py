@@ -173,7 +173,7 @@ async def stop(ctx):
     if ctx.voice_client:
         ctx.voice_client.stop()
         await ctx.voice_client.disconnect()
-    await ctx.send("⏹️ Música parada e fila limpa!")
+    await ctx.send("⏹️ Finalizando operações maneloicas... até mais rapaziada! 😤")
 
 @bot.command()
 async def volume(ctx, vol: int = None):
@@ -213,10 +213,11 @@ async def manel(ctx, *, pergunta: str = None):
                 }
                 async with session.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=payload) as resp:
                     data = await resp.json()
+                    print(f"[GROQ] Status: {resp.status} | Resposta: {data}")
                     resposta = data['choices'][0]['message']['content']
                     await ctx.send(f"🤖 **Manel diz:** {resposta}")
         except Exception as e:
-            print(f"Erro Groq: {e}")
+            print(f"[GROQ] Erro detalhado: {type(e).__name__}: {e}")
             await ctx.send("❌ Deu erro aqui, tenta de novo!")
 
 # ── PIADA ─────────────────────────────────────────────────────
@@ -297,5 +298,39 @@ async def ajuda(ctx):
 @bot.event
 async def on_ready():
     print(f'Manel AI está online!')
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+    await bot.process_commands(message)
+
+    bot_mencionado = bot.user in message.mentions
+    falou_manel = 'manel' in message.content.lower()
+
+    if (bot_mencionado or falou_manel) and not message.content.startswith('!'):
+        if not GROQ_API_KEY:
+            return
+        async with message.channel.typing():
+            try:
+                async with aiohttp.ClientSession() as session:
+                    headers = {
+                        'Authorization': f'Bearer {GROQ_API_KEY}',
+                        'Content-Type': 'application/json'
+                    }
+                    payload = {
+                        "model": "llama3-8b-8192",
+                        "messages": [
+                            {"role": "system", "content": "Você é o Manel, um bot engraçado e descolado de um server do Discord brasileiro. Responda de forma curta, informal e com humor. Use gírias brasileiras."},
+                            {"role": "user", "content": message.content}
+                        ],
+                        "max_tokens": 300
+                    }
+                    async with session.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=payload) as resp:
+                        data = await resp.json()
+                        resposta = data['choices'][0]['message']['content']
+                        await message.reply(f"🤖 {resposta}")
+            except Exception as e:
+                print(f"Erro Groq: {e}")
 
 bot.run(BOT_TOKEN)
