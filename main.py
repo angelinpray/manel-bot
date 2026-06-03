@@ -187,6 +187,38 @@ async def volume(ctx, vol: int = None):
     ctx.voice_client.source.volume = vol / 100
     await ctx.send(f"🔊 Volume: **{vol}%**")
 
+# ── MANEL IA ──────────────────────────────────────────────────
+@bot.command()
+async def manel(ctx, *, pergunta: str = None):
+    if not pergunta:
+        await ctx.send("Me pergunta algo! Ex: `!manel quem é você?`")
+        return
+    if not GROQ_API_KEY:
+        await ctx.send("❌ GROQ_API_KEY não configurada no Railway!")
+        return
+    async with ctx.typing():
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'Authorization': f'Bearer {GROQ_API_KEY}',
+                    'Content-Type': 'application/json'
+                }
+                payload = {
+                    "model": "llama3-8b-8192",
+                    "messages": [
+                        {"role": "system", "content": "Você é o Manel, um bot engraçado e descolado de um server do Discord brasileiro. Responda de forma curta, informal e com humor. Use gírias brasileiras."},
+                        {"role": "user", "content": pergunta}
+                    ],
+                    "max_tokens": 300
+                }
+                async with session.post('https://api.groq.com/openai/v1/chat/completions', headers=headers, json=payload) as resp:
+                    data = await resp.json()
+                    resposta = data['choices'][0]['message']['content']
+                    await ctx.send(f"🤖 **Manel diz:** {resposta}")
+        except Exception as e:
+            print(f"Erro Groq: {e}")
+            await ctx.send("❌ Deu erro aqui, tenta de novo!")
+
 # ── PIADA ─────────────────────────────────────────────────────
 PIADAS = [
     ("Por que o esqueleto não briga?", "Porque não tem estômago pra isso!"),
@@ -256,6 +288,9 @@ async def ajuda(ctx):
         "`!piada` — Piada em português\n"
         "`!jokenpo pedra/papel/tesoura` — Jokenpô\n"
         "`!manelize <texto>` — Transforma texto"
+    ), inline=False)
+    embed.add_field(name="🤖 IA", value=(
+        "`!manel <pergunta>` — Conversa com o Manel IA"
     ), inline=False)
     await ctx.send(embed=embed)
 
