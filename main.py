@@ -1,3 +1,6 @@
+import subprocess
+subprocess.run(["pip", "install", "--upgrade", "yt-dlp"], capture_output=True)
+
 import discord
 from discord.ext import commands
 import random
