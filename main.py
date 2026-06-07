@@ -819,7 +819,7 @@ async def comandos(ctx):
 @bot.command()
 async def limpar(ctx):
     """Limpa todas as mensagens recentes do bot no canal atual."""
-    if ctx.channel.name != "manel-ia":
+    if "manel-ia" not in ctx.channel.name.lower():
         return await ctx.send("❌ Esse comando só funciona no canal `#manel-ia`!")
 
     # Verifica se tem permissão para apagar mensagens de outros
