@@ -391,7 +391,12 @@ async def buscar_info(query: str) -> dict | None:
                 if not info:
                     return None
                 if "entries" in info:
-                    info = info["entries"][0]
+                    # É uma playlist
+                    resultados = []
+                    for e in info["entries"]:
+                        if e and e.get("url"):
+                            resultados.append({"titulo": e.get("title", "Desconhecido"), "url": e["url"], "duracao": e.get("duration", 0)})
+                    return resultados
                 return {"titulo": info.get("title", "Desconhecido"), "url": info["url"], "duracao": info.get("duration", 0)}
 
             # ── ESTRATÉGIA 1: SoundCloud direto (5 resultados) ──
@@ -488,16 +493,26 @@ async def play(ctx, *, query: str = None):
     elif ctx.author.voice.channel != vc.channel:
         await vc.move_to(ctx.author.voice.channel)
 
-    if vc.is_playing() or vc.is_paused():
-        fila = get_fila(ctx.guild.id)
-        fila.append({"titulo": info["titulo"], "url": info["url"], "solicitado_por": ctx.author.display_name})
-        await msg.edit(content=f"📋 Adicionado na fila ({len(fila)}): **{info['titulo']}**")
+    fila = get_fila(ctx.guild.id)
+
+    if isinstance(info, list):
+        # É uma playlist
+        for item in info:
+            fila.append({"titulo": item["titulo"], "url": item["url"], "solicitado_por": ctx.author.display_name})
+        await msg.edit(content=f"🎶 Playlist adicionada! **{len(info)}** músicas foram para a fila.")
+        if not vc.is_playing() and not vc.is_paused():
+            tocar_proxima(ctx, vc)
     else:
-        source = discord.PCMVolumeTransformer(
-            discord.FFmpegPCMAudio(info["url"], **FFMPEG_OPTIONS), volume=0.5
-        )
-        vc.play(source, after=lambda e: tocar_proxima(ctx, vc))
-        await msg.edit(content=f"🎵 Tocando: **{info['titulo']}** | por {ctx.author.display_name}")
+        # É uma música única
+        if vc.is_playing() or vc.is_paused():
+            fila.append({"titulo": info["titulo"], "url": info["url"], "solicitado_por": ctx.author.display_name})
+            await msg.edit(content=f"📋 Adicionado na fila ({len(fila)}): **{info['titulo']}**")
+        else:
+            source = discord.PCMVolumeTransformer(
+                discord.FFmpegPCMAudio(info["url"], **FFMPEG_OPTIONS), volume=0.5
+            )
+            vc.play(source, after=lambda e: tocar_proxima(ctx, vc))
+            await msg.edit(content=f"🎵 Tocando: **{info['titulo']}** | por {ctx.author.display_name}")
 
 @bot.command(aliases=["q"])
 async def fila(ctx):
