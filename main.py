@@ -258,34 +258,41 @@ async def gerar_audio_tts(texto: str) -> str | None:
         print(f"[TTS] gTTS falhou: {e}")
         return None
 
+tts_locks = {}
+
 async def falar_na_call(voice_client, texto: str):
-    """Gera TTS e toca no canal de voz."""
+    """Gera TTS e toca no canal de voz esperando a vez."""
+    guild_id = voice_client.guild.id
+    if guild_id not in tts_locks:
+        tts_locks[guild_id] = asyncio.Lock()
+        
     audio_path = await gerar_audio_tts(texto)
     if not audio_path:
         return False
 
-    # Aguarda música terminar para falar (ou interrompe se necessário)
-    if voice_client.is_playing():
-        voice_client.pause()
-        pausado = True
-    else:
-        pausado = False
+    async with tts_locks[guild_id]:
+        # Espera se estiver tocando alguma fala ou música (não pausa a música, apenas espera sua vez, ou interrompe a fala atual se quiser)
+        # O ideal é apenas esperar terminar de tocar.
+        while voice_client.is_playing():
+            await asyncio.sleep(0.5)
 
-    event = asyncio.Event()
+        event = asyncio.Event()
 
-    def after(err):
-        if err:
-            print(f"[VOZ] Erro ao tocar: {err}")
+        def after(err):
+            if err:
+                print(f"[VOZ] Erro ao tocar: {err}")
+            try:
+                os.remove(audio_path)
+            except Exception:
+                pass
+            bot.loop.call_soon_threadsafe(event.set)
+
+        source = discord.FFmpegPCMAudio(audio_path)
         try:
-            os.remove(audio_path)
-        except Exception:
-            pass
-        if pausado:
-            voice_client.resume()
-        event.set()
-
-    source = discord.FFmpegPCMAudio(audio_path)
-    voice_client.play(source, after=after)
+            voice_client.play(source, after=after)
+        except Exception as e:
+            print(f"[VOZ] Erro play: {e}")
+            event.set()
 
     try:
         await asyncio.wait_for(event.wait(), timeout=60)
