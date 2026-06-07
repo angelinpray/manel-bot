@@ -1,6 +1,3 @@
-import subprocess
-subprocess.run(["pip", "install", "--upgrade", "yt-dlp"], capture_output=True)
-
 from youtubesearchpython import VideosSearch
 from dotenv import load_dotenv
 load_dotenv()
