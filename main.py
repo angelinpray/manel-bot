@@ -17,7 +17,7 @@ import subprocess, sys
 
 # Garantir dependências extras em runtime
 def _pip(*pkgs):
-    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", *pkgs], check=False)
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--no-cache-dir", *pkgs], check=False)
 
 _pip("yt-dlp", "aiohttp", "aiofiles", "Pillow", "gtts", "pynacl", "python-dotenv", "piper-tts", "openai-whisper")
 
