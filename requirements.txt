@@ -3,3 +3,4 @@ yt-dlp
 aiohttp
 requests
 PyNaCl
+youtube-search-python
