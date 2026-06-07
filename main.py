@@ -732,6 +732,8 @@ async def esquece(ctx):
 #  AJUDA
 # ════════════════════════════════════════════════════════════
 
+bot.remove_command("help")
+
 @bot.command(aliases=["help", "comandos"])
 async def ajuda(ctx):
     embed = discord.Embed(
