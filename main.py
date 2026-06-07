@@ -24,6 +24,7 @@ _pip("yt-dlp", "aiohttp", "aiofiles", "Pillow", "gtts", "pynacl", "python-dotenv
 # ── Imports ──────────────────────────────────────────────────
 import discord
 from discord.ext import commands
+from discord.sinks import WaveSink
 from dotenv import load_dotenv
 load_dotenv()
 import random, os, asyncio, json, tempfile, io, base64, traceback, urllib.request
@@ -816,6 +817,103 @@ async def comandos(ctx):
     ), inline=False)
     await ctx.send(embed=embed)
 
+# ════════════════════════════════════════════════════════════
+#  RECONHECIMENTO DE VOZ ("ok manel")
+# ════════════════════════════════════════════════════════════
+
+escuta_ativa: dict[int, bool] = {}
+
+async def transcrever_audio(caminho_wav: str) -> str:
+    """Transcreve áudio com Whisper localmente."""
+    try:
+        import whisper
+        loop = asyncio.get_event_loop()
+        model = await loop.run_in_executor(None, lambda: whisper.load_model("tiny"))
+        result = await loop.run_in_executor(None, lambda: model.transcribe(caminho_wav, language="pt", fp16=False))
+        return result.get("text", "").strip().lower()
+    except Exception as e:
+        print(f"[WHISPER] Erro: {e}")
+        return ""
+
+async def ciclo_escuta(guild: discord.Guild, canal_texto: discord.TextChannel):
+    """Grava áudio do canal e responde se ouvir 'ok manel'."""
+    vc = guild.voice_client
+    if not vc: return
+
+    while escuta_ativa.get(guild.id, False):
+        vc = guild.voice_client
+        if not vc or not vc.is_connected(): break
+
+        sink = WaveSink()
+        try:
+            vc.start_recording(sink, lambda *a: None)
+        except Exception as e:
+            print(f"[VOZ] Erro ao iniciar: {e}")
+            await asyncio.sleep(3)
+            continue
+
+        await asyncio.sleep(5)  # Grava por 5 segundos
+        
+        try:
+            vc.stop_recording()
+        except:
+            pass
+
+        await asyncio.sleep(0.3)
+
+        for user_id, audio in sink.audio_data.items():
+            try:
+                tmp = tempfile.mktemp(suffix=".wav")
+                with open(tmp, "wb") as f:
+                    f.write(audio.file.getvalue())
+
+                texto = await transcrever_audio(tmp)
+                try: os.remove(tmp)
+                except: pass
+
+                if not texto: continue
+                
+                print(f"[VOZ] Transcrito de {user_id}: '{texto}'")
+
+                gatilhos = ["ok manel", "oi manel", "ei manel", "e aí manel"]
+                detectado = next((g for g in gatilhos if g in texto), None)
+
+                if detectado:
+                    pergunta = texto.split(detectado, 1)[-1].strip() or "Oi, tudo bem?"
+                    async with canal_texto.typing():
+                        resposta = await responder_manel(canal_texto.id, pergunta)
+
+                    await canal_texto.send(f"🎤 **Manel ouviu:** *{pergunta[:100]}*\n🤖 {resposta[:800]}")
+                    if guild.voice_client and guild.voice_client.is_connected():
+                        await falar_na_call(guild.voice_client, resposta[:400])
+
+            except Exception as e:
+                print(f"[VOZ] Erro proc áudio: {e}")
+
+@bot.command(name="escutar", aliases=["ouvir"])
+async def escutar(ctx):
+    """Manel entra na call e fica ouvindo esperando um 'ok manel'."""
+    if not ctx.author.voice:
+        return await ctx.send("Entra num canal de voz primeiro!")
+    if escuta_ativa.get(ctx.guild.id, False):
+        return await ctx.send("🎤 Já tô de ouvido em pé!")
+
+    vc = ctx.voice_client
+    if not vc:
+        vc = await ctx.author.voice.channel.connect()
+    elif ctx.author.voice.channel != vc.channel:
+        await vc.move_to(ctx.author.voice.channel)
+
+    escuta_ativa[ctx.guild.id] = True
+    await ctx.send("🎤 Manel ativou o modo fofoqueiro! Fala **'ok manel'** na call que eu respondo!")
+    bot.loop.create_task(ciclo_escuta(ctx.guild, ctx.channel))
+
+@bot.command(name="parescutar", aliases=["calar"])
+async def parescutar(ctx):
+    escuta_ativa[ctx.guild.id] = False
+    await ctx.send("🔇 Manel parou de escutar a call.")
+
+# ════════════════════════════════════════════════════════════
 @bot.command()
 async def limpar(ctx, limite: int = 100):
     """Limpa todas as mensagens do canal atual (apenas no #manel-ia)."""
