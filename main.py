@@ -824,15 +824,26 @@ async def comandos(ctx):
 escuta_ativa: dict[int, bool] = {}
 
 async def transcrever_audio(caminho_wav: str) -> str:
-    """Transcreve áudio com Whisper localmente."""
+    """Transcreve áudio usando a API do Groq."""
     try:
-        import whisper
+        from groq import Groq
+        client = Groq(api_key=GROQ_API_KEY)
+        
         loop = asyncio.get_event_loop()
-        model = await loop.run_in_executor(None, lambda: whisper.load_model("tiny"))
-        result = await loop.run_in_executor(None, lambda: model.transcribe(caminho_wav, language="pt", fp16=False))
-        return result.get("text", "").strip().lower()
+        def transcribe():
+            with open(caminho_wav, "rb") as file:
+                transcription = client.audio.transcriptions.create(
+                  file=(caminho_wav, file.read()),
+                  model="whisper-large-v3",
+                  response_format="text",
+                  language="pt"
+                )
+                return transcription
+                
+        result = await loop.run_in_executor(None, transcribe)
+        return str(result).strip().lower()
     except Exception as e:
-        print(f"[WHISPER] Erro: {e}")
+        print(f"[GROQ WHISPER] Erro: {e}")
         return ""
 
 async def ciclo_escuta(guild: discord.Guild, canal_texto: discord.TextChannel):
