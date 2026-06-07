@@ -377,6 +377,7 @@ async def buscar_info(query: str) -> dict | None:
     loop = asyncio.get_event_loop()
     with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
         try:
+            # Links diretos — extrai normalmente
             if query.startswith("http"):
                 info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
                 if not info:
@@ -385,27 +386,55 @@ async def buscar_info(query: str) -> dict | None:
                     info = info["entries"][0]
                 return {"titulo": info.get("title", "Desconhecido"), "url": info["url"], "duracao": info.get("duration", 0)}
 
-            # 1. Tenta SoundCloud primeiro (evita o bloqueio do YouTube na AWS)
+            # ── ESTRATÉGIA 1: SoundCloud direto (5 resultados) ──
+            print(f"[BUSCA] Tentando SoundCloud: '{query}'")
             try:
-                info = await loop.run_in_executor(None, lambda: ydl.extract_info(f"scsearch1:{query}", download=False))
+                info = await loop.run_in_executor(None, lambda: ydl.extract_info(f"scsearch5:{query}", download=False))
                 if info and "entries" in info:
                     for e in info["entries"]:
                         if e and e.get("url"):
+                            print(f"[BUSCA] ✅ Achou no SoundCloud: {e.get('title')}")
                             return {"titulo": e.get("title", "Desconhecido"), "url": e["url"], "duracao": e.get("duration", 0)}
             except Exception as e:
-                print(f"[SC] Erro no SoundCloud: {e}")
+                print(f"[SC] Erro: {e}")
 
-            # 2. Se não achar ou falhar, tenta o YouTube (fallback)
+            # ── ESTRATÉGIA 2: YouTube Search (biblioteca) → SoundCloud ──
+            print(f"[BUSCA] Tentando youtube-search-python → SoundCloud: '{query}'")
             try:
-                info = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch5:{query}", download=False))
+                from youtubesearchpython import VideosSearch
+                vs = await loop.run_in_executor(None, lambda: VideosSearch(query, limit=3).result())
+                resultados = vs.get("result", [])
+                for r in resultados:
+                    titulo_yt = r.get("title", "")
+                    if titulo_yt:
+                        # Usa o título achado no YouTube pra buscar no SoundCloud
+                        print(f"[BUSCA] Tentando SC com título do YT: '{titulo_yt}'")
+                        try:
+                            info2 = await loop.run_in_executor(None, lambda t=titulo_yt: ydl.extract_info(f"scsearch1:{t}", download=False))
+                            if info2 and "entries" in info2:
+                                for e in info2["entries"]:
+                                    if e and e.get("url"):
+                                        print(f"[BUSCA] ✅ Achou no SC via título YT: {e.get('title')}")
+                                        return {"titulo": e.get("title", "Desconhecido"), "url": e["url"], "duracao": e.get("duration", 0)}
+                        except Exception:
+                            pass
+            except Exception as e:
+                print(f"[YT-SEARCH] Erro: {e}")
+
+            # ── ESTRATÉGIA 3: YouTube direto (último recurso, pode falhar na AWS) ──
+            print(f"[BUSCA] Tentando YouTube direto (fallback): '{query}'")
+            try:
+                info = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch3:{query}", download=False))
                 if info and "entries" in info:
                     for e in info["entries"]:
                         if e and e.get("url"):
+                            print(f"[BUSCA] ✅ Achou no YouTube: {e.get('title')}")
                             return {"titulo": e.get("title", "Desconhecido"), "url": e["url"], "duracao": e.get("duration", 0)}
             except Exception as e:
-                print(f"[YT] Erro no YouTube: {e}")
+                print(f"[YT] Erro: {e}")
+
         except Exception as e:
-            print(f"[YT/SC] Erro geral: {e}")
+            print(f"[BUSCA] Erro geral: {e}")
     return None
 
 def tocar_proxima(ctx, voice_client):
