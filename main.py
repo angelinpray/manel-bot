@@ -817,39 +817,27 @@ async def comandos(ctx):
     await ctx.send(embed=embed)
 
 @bot.command()
-async def limpar(ctx):
-    """Limpa todas as mensagens recentes do bot no canal atual."""
+async def limpar(ctx, limite: int = 100):
+    """Limpa todas as mensagens do canal atual (apenas no #manel-ia)."""
     if "manel-ia" not in ctx.channel.name.lower():
         return await ctx.send("❌ Esse comando só funciona no canal `#manel-ia`!")
 
-    # Verifica se tem permissão para apagar mensagens de outros
-    pode_apagar_outros = ctx.channel.permissions_for(ctx.guild.me).manage_messages
+    if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
+        return await ctx.send("❌ Eu não tenho a permissão 'Gerenciar Mensagens' para apagar tudo!")
 
-    apagadas = 0
-    msg_aviso = await ctx.send("🧹 Limpando mensagens recentes...")
+    msg_aviso = await ctx.send("🧹 Passando a vassoura no canal...")
+    await asyncio.sleep(1) # Dá um tempinho antes de começar
     
-    async for msg in ctx.channel.history(limit=100):
-        # Sempre tenta apagar as próprias mensagens
-        is_bot_msg = msg.author == bot.user
-        is_command_msg = msg.content.startswith("!") or msg.content.lower().startswith("ok manel")
-        
-        # Só apaga mensagem de comando se tiver permissão pra isso
-        if is_bot_msg or (is_command_msg and pode_apagar_outros):
-            try:
-                await msg.delete()
-                apagadas += 1
-            except discord.Forbidden:
-                pass
-            except discord.HTTPException:
-                pass
-                
     try:
-        texto_final = f"✅ Limpei {apagadas} mensagens!" if pode_apagar_outros else f"✅ Limpei {apagadas} das minhas próprias mensagens! (Não tenho permissão para apagar as suas)."
-        msg_final = await ctx.send(texto_final)
+        # purge apaga todas as mensagens (até o limite) de forma rápida
+        apagadas = await ctx.channel.purge(limit=limite + 2) # +2 para incluir a msg_aviso e o comando do usuário
+        
+        msg_final = await ctx.send(f"✅ O Manel passou a vassoura e limpou {len(apagadas)-2} mensagens do canal!")
         await asyncio.sleep(5)
         await msg_final.delete()
-    except:
-        pass
+    except Exception as e:
+        await ctx.send("❌ Deu erro na hora de limpar as mensagens. Vê se eu tenho permissão certa.")
+        print(f"[LIMPAR] Erro: {e}")
 
 # ════════════════════════════════════════════════════════════
 #  EVENTOS
