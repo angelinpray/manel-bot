@@ -816,6 +816,33 @@ async def comandos(ctx):
     ), inline=False)
     await ctx.send(embed=embed)
 
+@bot.command()
+async def limpar(ctx):
+    """Limpa todas as mensagens recentes do bot no canal atual."""
+    if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
+        return await ctx.send("❌ Eu não tenho permissão para gerenciar mensagens neste canal. Preciso da permissão 'Gerenciar Mensagens'.")
+
+    apagadas = 0
+    msg_aviso = await ctx.send("🧹 Limpando minhas mensagens e comandos recentes...")
+    
+    async for msg in ctx.channel.history(limit=100):
+        # Apaga mensagens do bot OU mensagens que começam com "!" ou "ok manel"
+        if msg.author == bot.user or msg.content.startswith("!") or msg.content.lower().startswith("ok manel"):
+            try:
+                await msg.delete()
+                apagadas += 1
+            except discord.Forbidden:
+                pass
+            except discord.HTTPException:
+                pass
+                
+    try:
+        msg_final = await ctx.send(f"✅ Limpei {apagadas} mensagens relacionadas a mim!")
+        await asyncio.sleep(5)
+        await msg_final.delete()
+    except:
+        pass
+
 # ════════════════════════════════════════════════════════════
 #  EVENTOS
 # ════════════════════════════════════════════════════════════
