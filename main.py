@@ -108,7 +108,7 @@ async def chamar_groq(mensagens: list, max_tokens: int = 400) -> str:
     if GROQ_API_KEY:
         url     = "https://api.groq.com/openai/v1/chat/completions"
         api_key = GROQ_API_KEY
-        model   = "llama3-8b-8192"
+        model   = "llama-3.1-8b-instant"
     elif OPENAI_API_KEY:
         url     = "https://api.openai.com/v1/chat/completions"
         api_key = OPENAI_API_KEY
