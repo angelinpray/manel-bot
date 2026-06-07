@@ -467,7 +467,7 @@ async def play(ctx, *, query: str = None):
     if not ctx.author.voice:
         return await ctx.send("Você precisa estar num canal de voz!")
 
-    msg = await ctx.send(f"🔍 Manel vai lá no YouTube buscar **{query}**...")
+    msg = await ctx.send(f"🔍 Manel está molestando o YouTube buscando **{query}**...")
     async with ctx.typing():
         info = await buscar_info(query)
 
