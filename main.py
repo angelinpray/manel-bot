@@ -785,7 +785,6 @@ async def comandos(ctx):
         "`!memoria` — Ver o que ele sabe\n"
         "`!esquece` — Apagar memória (admin)"
     ), inline=False)
-    embed.set_footer(text="* requer OPENAI_API_KEY configurada")
     await ctx.send(embed=embed)
 
 # ════════════════════════════════════════════════════════════
