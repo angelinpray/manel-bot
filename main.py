@@ -794,7 +794,7 @@ async def comandos(ctx):
     embed.add_field(name="🤖 IA & Chat", value=(
         "`!manel <pergunta>` — Conversa com a IA\n"
         "`!manel` + imagem — Analisa a imagem\n"
-        "`!analisa` + imagem — Análise detalhada*"
+        "`!limpar` — Apaga todas as mensagens do canal"
     ), inline=False)
     embed.add_field(name="🔊 Voz na Call", value=(
         "`!falar <texto>` — Manel fala na call (TTS)\n"
