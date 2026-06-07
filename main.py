@@ -1,6 +1,9 @@
 import subprocess
 subprocess.run(["pip", "install", "--upgrade", "yt-dlp"], capture_output=True)
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import discord
 from discord.ext import commands
 import random
