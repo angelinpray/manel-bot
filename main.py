@@ -161,7 +161,20 @@ async def responder_manel(channel_id: int, pergunta: str, imagem_url: str | None
     return resposta
 
 # ── TTS (Text-to-Speech) ─────────────────────────────────────
+import re
+
+def limpar_texto_tts(texto: str) -> str:
+    # Remove texto entre asteriscos (ex: *rindo*)
+    texto = re.sub(r'\*[^*]+\*', '', texto)
+    # Remove texto entre parênteses e colchetes (ex: [sarcástico])
+    texto = re.sub(r'\[[^\]]+\]', '', texto)
+    texto = re.sub(r'\([^\)]+\)', '', texto)
+    # Remove marcação markdown
+    texto = texto.replace('*', '').replace('_', '').replace('`', '').replace('~', '')
+    return texto.strip()
+
 async def gerar_audio_tts(texto: str) -> str | None:
+    texto = limpar_texto_tts(texto)
     """
     Tenta gerar áudio na ordem:
       1. ElevenLabs (melhor qualidade em PT-BR, requer ELEVENLABS_KEY)
