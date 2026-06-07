@@ -54,14 +54,14 @@ def get_fila(guild_id):
 async def buscar_info(query):
     loop = asyncio.get_event_loop()
     opts = YTDL_OPTIONS.copy()
+
     with yt_dlp.YoutubeDL(opts) as ydl:
         try:
-            # Se for link direto não usa ytsearch
+            # Se for link direto, extrai direto no yt-dlp
             if query.startswith('http'):
                 info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
                 if not info:
                     return None
-                # Link direto não tem entries
                 if 'entries' in info:
                     info = info['entries'][0]
                 return {
@@ -69,31 +69,39 @@ async def buscar_info(query):
                     'url': info['url'],
                     'duracao': info.get('duration', 0)
                 }
-            info = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch5:{query}", download=False))
-            if not info or 'entries' not in info:
-                print(f"[BUSCA] Sem entries para: {query}")
+
+            # Busca por nome sem usar ytsearch do yt-dlp, porque VPS/AWS toma bloqueio anti-bot do YouTube
+            videos_search = VideosSearch(query, limit=1)
+            resultado = await loop.run_in_executor(None, videos_search.result)
+
+            if not resultado or not resultado.get('result'):
+                print(f"[BUSCA] Nenhum resultado para: {query}")
                 return None
-            print(f"[BUSCA] Total de entries: {len(info['entries'])}")
-            for i, e in enumerate(info['entries']):
-                if e:
-                    print(f"[ENTRY {i}] titulo={e.get('title')} | url={bool(e.get('url'))} | webpage={e.get('webpage_url')}")
-                else:
-                    print(f"[ENTRY {i}] None")
-            entry = None
-            for e in info['entries']:
-                if e and e.get('url'):
-                    entry = e
-                    break
-            if not entry:
-                print(f"[BUSCA] Nenhuma entry com URL válida")
+
+            video = resultado['result'][0]
+            video_url = video.get('link')
+
+            if not video_url:
+                print(f"[BUSCA] Resultado sem link para: {query}")
                 return None
+
+            print(f"[BUSCA] Encontrado via youtube-search-python: {video.get('title')} | {video_url}")
+
+            # Agora o yt-dlp só extrai o áudio do link encontrado
+            info = await loop.run_in_executor(None, lambda: ydl.extract_info(video_url, download=False))
+            if not info:
+                print(f"[BUSCA] yt-dlp não conseguiu extrair: {video_url}")
+                return None
+            if 'entries' in info:
+                info = info['entries'][0]
+
             return {
-                'titulo': entry.get('title', 'Desconhecido'),
-                'url': entry['url'],
-                'duracao': entry.get('duration', 0)
+                'titulo': info.get('title', video.get('title', 'Desconhecido')),
+                'url': info['url'],
+                'duracao': info.get('duration', 0)
             }
         except Exception as e:
-            print(f"Erro ao buscar: {e}")
+            print(f"Erro ao buscar: {type(e).__name__}: {e}")
             return None
 
 def tocar_proxima(ctx, voice_client):
@@ -123,7 +131,7 @@ async def play(ctx, *, query: str = None):
         return
 
     async with ctx.typing():
-        msg = await ctx.send(f"🔍 Manel está molestando o YouTube em busca de **{query}**...")
+        msg = await ctx.send(f"🔍 Manel está buscando **{query}**...")
         info = await buscar_info(query)
 
     if not info:
@@ -221,7 +229,7 @@ async def manel(ctx, *, pergunta: str = None):
                     'Content-Type': 'application/json'
                 }
                 payload = {
-                    "model": "llama3-8b-8192",
+                    "model": "llama-3.1-8b-instant",
                     "messages": [
                         {"role": "system", "content": "Você é o Manel, um cara autista, esquisito e engraçado sem querer. Você é da igreja e guarda a chave da igreja, isso é seu maior orgulho na vida. Você fala de forma estranha, às vezes sem nexo, mistura assuntos da igreja com qualquer coisa. Responda de forma curta e informal. Use gírias brasileiras. Seja engraçado sem querer ser."},
                         {"role": "user", "content": pergunta}
@@ -337,7 +345,7 @@ async def on_message(message):
                         'Content-Type': 'application/json'
                     }
                     payload = {
-                        "model": "llama3-8b-8192",
+                        "model": "llama-3.1-8b-instant",
                         "messages": [
                             {"role": "system", "content": "Você é o Manel, um cara autista, esquisito e engraçado sem querer. Você é da igreja e guarda a chave da igreja, isso é seu maior orgulho na vida. Você fala de forma estranha, às vezes sem nexo, mistura assuntos da igreja com qualquer coisa. Responda de forma curta e informal. Use gírias brasileiras. Seja engraçado sem querer ser."},
                             {"role": "user", "content": message.content}
@@ -350,5 +358,8 @@ async def on_message(message):
                         await message.reply(f"🤖 {resposta}")
             except Exception as e:
                 print(f"Erro Groq: {e}")
+
+if not BOT_TOKEN:
+    raise RuntimeError('BOT_TOKEN não configurado. Verifique o arquivo .env')
 
 bot.run(BOT_TOKEN)
