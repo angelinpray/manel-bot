@@ -819,15 +819,19 @@ async def comandos(ctx):
 @bot.command()
 async def limpar(ctx):
     """Limpa todas as mensagens recentes do bot no canal atual."""
-    if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
-        return await ctx.send("❌ Eu não tenho permissão para gerenciar mensagens neste canal. Preciso da permissão 'Gerenciar Mensagens'.")
+    # Verifica se tem permissão para apagar mensagens de outros
+    pode_apagar_outros = ctx.channel.permissions_for(ctx.guild.me).manage_messages
 
     apagadas = 0
-    msg_aviso = await ctx.send("🧹 Limpando minhas mensagens e comandos recentes...")
+    msg_aviso = await ctx.send("🧹 Limpando mensagens recentes...")
     
     async for msg in ctx.channel.history(limit=100):
-        # Apaga mensagens do bot OU mensagens que começam com "!" ou "ok manel"
-        if msg.author == bot.user or msg.content.startswith("!") or msg.content.lower().startswith("ok manel"):
+        # Sempre tenta apagar as próprias mensagens
+        is_bot_msg = msg.author == bot.user
+        is_command_msg = msg.content.startswith("!") or msg.content.lower().startswith("ok manel")
+        
+        # Só apaga mensagem de comando se tiver permissão pra isso
+        if is_bot_msg or (is_command_msg and pode_apagar_outros):
             try:
                 await msg.delete()
                 apagadas += 1
@@ -837,7 +841,8 @@ async def limpar(ctx):
                 pass
                 
     try:
-        msg_final = await ctx.send(f"✅ Limpei {apagadas} mensagens relacionadas a mim!")
+        texto_final = f"✅ Limpei {apagadas} mensagens!" if pode_apagar_outros else f"✅ Limpei {apagadas} das minhas próprias mensagens! (Não tenho permissão para apagar as suas)."
+        msg_final = await ctx.send(texto_final)
         await asyncio.sleep(5)
         await msg_final.delete()
     except:
