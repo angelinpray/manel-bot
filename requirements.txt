@@ -1,6 +1,7 @@
 discord.py[voice]
 yt-dlp
 aiohttp
-requests
+httpx==0.27.0
+python-dotenv
 PyNaCl
 youtube-search-python
