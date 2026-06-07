@@ -734,8 +734,8 @@ async def esquece(ctx):
 
 bot.remove_command("help")
 
-@bot.command(aliases=["help", "comandos"])
-async def ajuda(ctx):
+@bot.command(aliases=["help", "ajuda"])
+async def comandos(ctx):
     embed = discord.Embed(
         title="🤖 Manel Bot — Comandos Completos",
         description="O guardião da chave da igreja tá aqui pra ajudar (mal).",
