@@ -24,6 +24,7 @@ _pip("yt-dlp", "aiohttp", "aiofiles", "Pillow", "gtts", "pynacl", "python-dotenv
 # ── Imports ──────────────────────────────────────────────────
 import discord
 from discord.ext import commands
+from discord.sinks import WaveSink
 from dotenv import load_dotenv
 load_dotenv()
 import random, os, asyncio, json, tempfile, io, base64, traceback, urllib.request
@@ -425,6 +426,125 @@ def tocar_proxima(ctx, voice_client):
             ctx.send("✅ Fila acabou! `!play` pra adicionar mais."),
             bot.loop,
         )
+
+# ════════════════════════════════════════════════════════════
+#  RECONHECIMENTO DE VOZ ("ok manel")
+# ════════════════════════════════════════════════════════════
+
+escuta_ativa: dict[int, bool] = {}  # guild_id -> True/False
+
+async def transcrever_audio(caminho_wav: str) -> str:
+    """Transcreve áudio com Whisper localmente."""
+    try:
+        import whisper
+        loop = asyncio.get_event_loop()
+        model = await loop.run_in_executor(None, lambda: whisper.load_model("tiny"))
+        result = await loop.run_in_executor(None, lambda: model.transcribe(caminho_wav, language="pt", fp16=False))
+        return result.get("text", "").strip().lower()
+    except Exception as e:
+        print(f"[WHISPER] Erro: {e}")
+        return ""
+
+async def ciclo_escuta(guild: discord.Guild, canal_texto: discord.TextChannel):
+    """Loop que grava em ciclos de 5s, transcreve e responde se detectar 'ok manel'."""
+    vc = guild.voice_client
+    if not vc:
+        return
+
+    print(f"[VOZ] Ciclo de escuta iniciado em '{guild.name}'")
+    while escuta_ativa.get(guild.id, False):
+        vc = guild.voice_client
+        if not vc or not vc.is_connected():
+            break
+
+        sink = WaveSink()
+        try:
+            vc.start_recording(sink, lambda *a: None)
+        except Exception as e:
+            print(f"[VOZ] Erro ao iniciar gravação: {e}")
+            await asyncio.sleep(3)
+            continue
+
+        await asyncio.sleep(5)  # grava por 5 segundos
+
+        try:
+            vc.stop_recording()
+        except Exception:
+            pass
+
+        await asyncio.sleep(0.3)  # buffer pra finalizar
+
+        # Processa o áudio de cada usuário
+        for user_id, audio in sink.audio_data.items():
+            try:
+                tmp = tempfile.mktemp(suffix=".wav")
+                with open(tmp, "wb") as f:
+                    f.write(audio.file.getvalue())
+
+                texto = await transcrever_audio(tmp)
+                try:
+                    os.remove(tmp)
+                except Exception:
+                    pass
+
+                print(f"[VOZ] Transcrito de {user_id}: '{texto}'")
+
+                if not texto:
+                    continue
+
+                # Detecta wake word "ok manel"
+                gatilhos = ["ok manel", "oi manel", "ei manel", "e aí manel"]
+                detectado = None
+                for g in gatilhos:
+                    if g in texto:
+                        detectado = g
+                        break
+
+                if detectado:
+                    pergunta = texto.split(detectado, 1)[-1].strip()
+                    if not pergunta:
+                        pergunta = "Oi, tudo bem?"
+
+                    print(f"[VOZ] Wake word detectado! Pergunta: '{pergunta}'")
+
+                    # Responde no chat e na voz
+                    async with canal_texto.typing():
+                        resposta = await responder_manel(canal_texto.id, pergunta)
+
+                    await canal_texto.send(f"🎤 **Manel ouviu:** *{pergunta[:100]}*\n🤖 {resposta[:800]}")
+
+                    vc = guild.voice_client
+                    if vc and vc.is_connected():
+                        await falar_na_call(vc, resposta[:400])
+
+            except Exception as e:
+                print(f"[VOZ] Erro processando áudio: {e}")
+
+    print(f"[VOZ] Ciclo de escuta encerrado em '{guild.name}'")
+
+@bot.command(name="escutar", aliases=["ouvir"])
+async def escutar(ctx):
+    """Ativa a escuta de voz — o Manel fica ouvindo e responde ao 'ok manel'."""
+    if not ctx.author.voice:
+        return await ctx.send("Entra num canal de voz primeiro!")
+    if escuta_ativa.get(ctx.guild.id, False):
+        return await ctx.send("🎤 Já tô escutando, rapaziada!")
+
+    vc = ctx.voice_client
+    if vc is None:
+        vc = await ctx.author.voice.channel.connect()
+    elif ctx.author.voice.channel != vc.channel:
+        await vc.move_to(ctx.author.voice.channel)
+
+    escuta_ativa[ctx.guild.id] = True
+    await ctx.send("🎤 Manel de ouvido! Fala **'ok manel'** na call que ele responde!")
+    bot.loop.create_task(ciclo_escuta(ctx.guild, ctx.channel))
+
+@bot.command(name="parescutar", aliases=["calar"])
+async def parescutar(ctx):
+    """Desativa a escuta de voz."""
+    escuta_ativa[ctx.guild.id] = False
+    await ctx.send("🔇 Manel parou de escutar. Use `!escutar` pra ativar de novo.")
 
 # ════════════════════════════════════════════════════════════
 #  COMANDOS DE MÚSICA
