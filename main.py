@@ -334,7 +334,7 @@ async def gerar_imagem(prompt_en: str) -> bytes | None:
     try:
         import urllib.parse
         safe_prompt = urllib.parse.quote(prompt_en[:400])
-        url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=512&height=512&nologo=true"
+        url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=512&height=512&nologo=true&model=flux"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"}
         async with aiohttp.ClientSession() as s:
             async with s.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as r:
