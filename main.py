@@ -332,13 +332,17 @@ async def gerar_imagem(prompt_en: str) -> bytes | None:
 
     # 2 — Pollinations.ai (gratuito, sem autenticação)
     try:
-        safe_prompt = prompt_en.replace(" ", "%20")[:400]
+        import urllib.parse
+        safe_prompt = urllib.parse.quote(prompt_en[:400])
         url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=512&height=512&nologo=true"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"}
         async with aiohttp.ClientSession() as s:
-            async with s.get(url, timeout=aiohttp.ClientTimeout(total=60)) as r:
+            async with s.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as r:
                 if r.status == 200:
                     print("[IMG] Pollinations OK")
                     return await r.read()
+                else:
+                    print(f"[IMG] Pollinations retornou status {r.status}")
     except Exception as e:
         print(f"[IMG] Pollinations falhou: {e}")
 
@@ -387,17 +391,42 @@ async def buscar_info(query: str) -> dict | None:
         try:
             # Links diretos — extrai normalmente
             if query.startswith("http"):
-                info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
-                if not info:
-                    return None
-                if "entries" in info:
-                    # É uma playlist
-                    resultados = []
-                    for e in info["entries"]:
-                        if e and e.get("url"):
-                            resultados.append({"titulo": e.get("title", "Desconhecido"), "url": e["url"], "duracao": e.get("duration", 0)})
-                    return resultados
-                return {"titulo": info.get("title", "Desconhecido"), "url": info["url"], "duracao": info.get("duration", 0)}
+                # Workaround para links do YouTube na AWS (bloqueio de IP)
+                if "youtube.com" in query or "youtu.be" in query:
+                    print("[BUSCA] Link do YouTube detectado. Tentando extrair título via biblioteca para burlar bloqueio AWS...")
+                    try:
+                        from youtubesearchpython import Video, Playlist
+                        if "list=" in query:
+                            # Tenta extrair playlist
+                            pl = await loop.run_in_executor(None, lambda: Playlist(query))
+                            resultados = []
+                            for v in pl.videos:
+                                resultados.append({"titulo": v.get("title", "Desconhecido"), "url": "", "is_youtube_link": True})
+                            # Só retorna os títulos, precisaremos buscar o áudio depois no play, ou buscar 1 por 1 no soundcloud agora
+                            # Para simplificar, vamos buscar a primeira música no SoundCloud e ignorar o resto para não travar
+                            if resultados:
+                                titulo = resultados[0]["titulo"]
+                                query = titulo  # Redireciona a query para o nome da música e cai na busca padrão abaixo
+                        else:
+                            # Vídeo único
+                            video = await loop.run_in_executor(None, lambda: Video.getInfo(query))
+                            titulo = video["title"]
+                            print(f"[BUSCA] Título extraído do link YT: {titulo}")
+                            query = titulo # Muda a query pro título e deixa o resto do código buscar no SoundCloud
+                    except Exception as e:
+                        print(f"[YT-LINK] Erro ao extrair info do link: {e}")
+                else:
+                    # Se for link do SoundCloud ou outro, vai normal
+                    info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+                    if not info:
+                        return None
+                    if "entries" in info:
+                        resultados = []
+                        for e in info["entries"]:
+                            if e and e.get("url"):
+                                resultados.append({"titulo": e.get("title", "Desconhecido"), "url": e["url"], "duracao": e.get("duration", 0)})
+                        return resultados
+                    return {"titulo": info.get("title", "Desconhecido"), "url": info["url"], "duracao": info.get("duration", 0)}
 
             # ── ESTRATÉGIA 1: SoundCloud direto (5 resultados) ──
             print(f"[BUSCA] Tentando SoundCloud: '{query}'")
