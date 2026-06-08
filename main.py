@@ -692,27 +692,14 @@ async def imagem(ctx, *, prompt: str = None):
         # Traduz para inglês para melhor resultado
         prompt_en = await traduzir_para_ingles(prompt)
         print(f"[IMG] Prompt EN: {prompt_en}")
-        
-        # 1 - Fal.ai (se tiver chave)
-        dados = None
-        if FAL_KEY:
-            dados = await gerar_imagem(prompt_en)
+        dados = await gerar_imagem(prompt_en)
 
-    if dados:
-        arquivo = discord.File(io.BytesIO(dados), filename="manel_arte.png")
-        await msg.edit(content=f"🎨 **Manel gerou sua arte:** *{prompt}*")
-        await ctx.send(file=arquivo)
-    else:
-        # Fallback para Pollinations via Embed (bypassa o bloqueio de IP do VPS usando o proxy do Discord)
-        import urllib.parse
-        import random
-        safe_prompt = urllib.parse.quote(prompt_en[:400])
-        seed = random.randint(1, 100000)
-        img_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=512&height=512&nologo=true&seed={seed}"
-        
-        embed = discord.Embed(title=f"🎨 Manel gerou sua arte", description=f"*{prompt}*", color=0x7289DA)
-        embed.set_image(url=img_url)
-        await msg.edit(content=None, embed=embed)
+    if not dados:
+        return await msg.edit(content="❌ As APIs gratuitas bloquearam o bot por excesso de uso. Crie uma conta em fal.ai e configure o FAL_KEY no arquivo .env para voltar a gerar imagens.")
+
+    arquivo = discord.File(io.BytesIO(dados), filename="manel_arte.png")
+    await msg.edit(content=f"🎨 **Manel gerou sua arte:** *{prompt}*")
+    await ctx.send(file=arquivo)
 
 # ════════════════════════════════════════════════════════════
 #  ANÁLISE DE IMAGEM
